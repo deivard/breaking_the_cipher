@@ -20,7 +20,9 @@ module caesarDecrypter =
                 // If we went out of bounds, restart from the beginning/end
                 | _ when newC < int 'A' -> char (newC + (alphabetLength + 1))
                 | _ when newC > int 'Z' -> char (newC - (alphabetLength + 1))
+                // Else return the new character
                 | _ -> char newC
+            // Non letter characters are just returned
             | _ -> c
         ) 
         newText |> Seq.map string |> String.concat ""
