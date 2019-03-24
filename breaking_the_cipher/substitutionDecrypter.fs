@@ -3,7 +3,7 @@ namespace substitutionDecrypter
 module substitutionDecrypter = 
     open System
     // Frequencies of character appearances
-    let englishFreqMap = [(char 32, 0.19180) ; ('E', 0.12702) ; ('T', 0.09056) ; ('A', 0.08167) ; 
+    let englishFreqMap = [(' ', 0.19180) ; ('E', 0.12702) ; ('T', 0.09056) ; ('A', 0.08167) ; 
                           ('O', 0.07507) ; ('I', 0.06966) ; ('N', 0.06749) ; ('S', 0.06327) ;
                           ('H', 0.06094) ; ('R', 0.05987) ; ('D', 0.04253) ; ('L', 0.04025) ; 
                           ('C', 0.02782) ; ('U', 0.02758) ; ('M', 0.02406) ; ('W', 0.02360) ; 
@@ -18,11 +18,11 @@ module substitutionDecrypter =
     // All the different characters that appear in the text
     let alphabet = ['A' .. 'Z'] @ [ '(' ; ')' ; '!' ; '?' ; '.' ; ',' ; ':' ; '1' ; '2' ; '3' ; '5' ; ''' ; ';' ; '*' ; '-' ; ' ']
 
-    let path = "../../../ciphers/TEXT_2.txt"
-    let text = System.IO.File.ReadAllText path
+    // let path = "../../../ciphers/TEXT_2.txt"
+    // let text = System.IO.File.ReadAllText path
 
     // Counts how many times a char occurs in a text
-    let countOccurances c text = 
+    let countOccurrences c text = 
         let filteredText = text |> Seq.filter (fun x -> x = c)
         Seq.length filteredText
     
@@ -31,24 +31,23 @@ module substitutionDecrypter =
     // Creates the frequency map by looping the text 'alphabet.Length' times. 
     // (Decided that this is better than recreating a list 'alphabet.Length' times, if we want to keep the immutability)
     let createTextFreqMap alphabet text =
-        // Helper function that creates an occurancesMap of the input alphabet from the input text
-        let rec alphabetOccuranceLoop alphabetList =
+        // Helper function that creates an occurrencesMap of the input alphabet from the input text
+        let rec alphabetOccurrenceLoop alphabetList =
             match alphabetList with
-            | head::tail -> (head, (countOccurances head text))::alphabetOccuranceLoop tail
+            | head::tail -> (head, (countOccurrences head text))::alphabetOccurrenceLoop tail
             | []         -> []
-        // Helper function that creates a frequencyMap of the occurancesMap based on the input textLength
-        let rec alphabetFreqMap occuranceMap textLength = 
-            match occuranceMap with
+        // Helper function that creates a frequencyMap of the occurrencesMap based on the input textLength
+        let rec alphabetFreqMap occurrenceMap textLength = 
+            match occurrenceMap with
             | (c, o)::tail -> (c, double o / double textLength)::alphabetFreqMap tail textLength
             | []          -> []
 
-        let occurancesMap = alphabetOccuranceLoop alphabet
+        let occurrencesMap = alphabetOccurrenceLoop alphabet
         let textLength = Seq.length text 
-        let charFreqMap = alphabetFreqMap occurancesMap textLength
+        let charFreqMap = alphabetFreqMap occurrencesMap textLength
         printf "%A" charFreqMap
         charFreqMap
 
-    //createTextFreqMap ['A'..'Z'] "ASD FSAEDFWEO WOF SDOFADOWQEF ASDFOW SDF!"
 
     // Creates a first guess substitution key based on simple frequency analysis
     let createFirstKey englishFreqMap textFreqMap = 
@@ -87,11 +86,11 @@ module substitutionDecrypter =
         // Helper function that find the replacement letter in the keyMap
         let findReplacement (c:char) keyMap = 
             match int c with
-            | 13 | 10 -> c // Carriage return
+            | 13 | 10 -> c // Carriage return/newline
             | _ ->
                 match keyMap |> List.tryFind (fun (_, letterReplacing) -> c = letterReplacing) with
                 | Some (c, r) -> c
-                | None -> printf "Couldn't find char: %d in keymap\n" (int c); '0'
+                | None -> printf "Couldn't find char: %d in keymap\n" (int c); '§'
 
         let newText = text |> Seq.map (fun c -> 
             findReplacement c keyMap)
@@ -106,10 +105,11 @@ module substitutionDecrypter =
         let oldEntryWithNewC = keyMap |> List.tryFind (fun (letterReplaced, _) -> letterReplaced = newC)
 
         match oldEntryWithOldC with
-        | Some (a, oldC) -> match oldEntryWithNewC with
+        | Some (oldC, rOld) -> match oldEntryWithNewC with
                             // If both tryFinds returned some tuple, we filter them out and add the new entries instead.
                             // They will be reordered by this operation but it doesn't matter
-                            | Some (b, newC) -> (a, newC)::(b, oldC)::(keyMap |> List.filter (fun (c, rc) -> (a, oldC) <> (c, rc) || (b, newC) <> (c, rc)))
+                            | Some (newC, rNew) -> (oldC, rNew)::(newC, rOld)::(keyMap |> 
+                                List.filter (fun (c, rc) -> (oldC <> c && rOld <> rc) && (newC <> c && rNew <> rc)))
                             | None -> keyMap
         | None -> keyMap
 
@@ -118,15 +118,16 @@ module substitutionDecrypter =
     let decrypt text =
         let textFreqMap = createTextFreqMap alphabet text 
         let firstKeyMap = createFirstKey englishFreqMap textFreqMap
-        printf "%A" firstKeyMap
+        printf "%A\n" firstKeyMap
 
         let rec manualDecryptionLoop text keyMap = 
-            decryptWithKey text keyMap |> printf "\n-------------------\n%s"
+            let decrypted = decryptWithKey text keyMap
+            decrypted |> printf "\n-------------------\n%s"
             printf "\n\nReplace character: "
             let c = Console.ReadKey()
             match c.KeyChar with
             // Quit the loop
-            | '§' -> printf "Final Keymap: %A\n\n" keyMap; text
+            | '§' -> printf "Final Keymap: %A\n\n" keyMap; decrypted
             | _ ->
                 printf " ... with: "
                 let rc = Console.ReadKey()
